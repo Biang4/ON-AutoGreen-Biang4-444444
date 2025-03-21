@@ -1,1 +1,115 @@
+# 定义 GitHub Actions 工作流的名称
+name: 180 Cloud check in action
 
+# 定义触发工作流的事件
+on:
+  # 当代码推送到 main 分支时触发
+  push:
+    branches:
+      - main
+  # 当用户对仓库进行 watch 操作时触发
+  watch:
+    types: started
+  # 手动触发工作流
+  workflow_dispatch:
+  # 定时任务，每天北京时间 0 点触发（对应 UTC 时间 16 点）
+  schedule:
+    - cron: 00 16 * * *
+
+# 定义工作流中的作业
+jobs:
+  # 定义名为 build-and-deploy 的作业
+  build-and-deploy:
+    # 指定作业运行的环境，这里使用最新的 Ubuntu 系统
+    runs-on: ubuntu-latest
+    # 指定作业运行时使用的环境变量
+    environment: user
+    # 定义作业中的步骤
+    steps:
+      # 步骤 1: 随机延迟 0 - 3 分钟，避免集中请求服务器
+      - name: 🔀 随机延迟 0 - 3 分钟
+        run: |
+          delay=$((RANDOM % 181))
+          echo "将延迟 $delay 秒后继续执行后续步骤..."
+          sleep $delay
+          echo "延迟 $delay 秒已完成，继续执行后续步骤。"
+
+      # 步骤 2: 检出代码到运行环境
+      - name: 🔌 检出代码
+        uses: actions/checkout@main
+
+      # 步骤 3: 设置 Node.js 环境，使用版本 18 并启用 npm 缓存
+      - name: 🔨 设置 Node.js 环境
+        uses: actions/setup-node@main
+        with:
+          node-version: 18
+          cache: npm
+
+      # 步骤 4: 检查是否开启调试模式，如果开启则设置环境变量
+      - name: 👾 检查是否开启调试模式
+        if: vars.debug == '1'
+        run: |
+          echo "调试模式已开启，设置环境变量 CLOUD189_VERBOSE=1"
+          echo "CLOUD189_VERBOSE=1" >> $GITHUB_ENV
+
+      # 步骤 5: 检查是否启用缓存 Token，如果启用则设置环境变量
+      - name: 🗳️ 检查是否启用缓存 Token
+        if: vars.cacheToken == '1'
+        run: |
+          echo "启用缓存 Token，设置环境变量 CACHE_TOKEN=1"
+          echo "CACHE_TOKEN=1" >> $GITHUB_ENV
+
+      # 步骤 6: 恢复缓存的 Cookie，如果启用了缓存 Token
+      - name: 📹 恢复缓存的 Cookie
+        id: cache-cookie-restore
+        if: vars.cacheToken == '1'
+        uses: actions/cache@v4
+        with:
+          path: .token
+          key: ${{ runner.os }}-cache-token
+
+      # 步骤 7: 初始化机密信息，将仓库的 secrets 转换为环境变量
+      - name: 🔧 初始化机密信息
+        uses: shine1594/secrets-to-env-action@master
+        with:
+          secrets: ${{ toJSON(secrets) }}
+          secrets_env: production
+          prefix_prod: ""
+          file_name_prod: .env
+
+      # 步骤 8: 安装项目依赖
+      - name: 📡 安装项目依赖
+        run: |
+          echo "开始安装项目依赖..."
+          npm install
+
+      # 步骤 9: 运行项目，最多重试 3 次，每次超时时间为 30 分钟
+      - name: 🚀 运行项目
+        uses: nick-fields/retry@master
+        with:
+          timeout_minutes: 30
+          max_attempts: 3
+          command: |
+            echo "开始运行项目，最多重试 3 次，每次超时时间为 30 分钟..."
+            npm start
+
+      # 步骤 10: 如果是定时任务触发，则进行一次空提交并推送代码
+      - name: 🚗 保持运行状态
+        if: github.event_name == 'schedule'
+        run: |
+          echo "本次工作流由定时任务触发，进行一次空提交并推送代码..."
+          git config --local user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
+          git config --local user.name "${{ github.actor }}"
+          git remote set-url origin https://${{ github.actor }}:${{ github.token }}@github.com/${{ github.repository }}
+          git pull --rebase --autostash
+          git commit --allow-empty -m "Keep Running..."
+          git push
+
+      # 步骤 11: 删除旧的工作流运行记录，保留最新的 50 条记录
+      - name: 🎉 删除旧的工作流运行记录
+        uses: Mattraks/delete-workflow-runs@main
+        with:
+          token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          retain_days: 0
+          keep_minimum_runs: 50
