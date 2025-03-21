@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
   # 定时任务，每天北京时间 14 点 10 分触发（对应 UTC 时间 06 点 10 分）
   schedule:
-    - cron: 10 06 * * *
+    - cron: 20 06 * * *
 
 # 定义工作流中的作业
 jobs:
