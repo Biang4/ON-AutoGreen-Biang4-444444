@@ -4,6 +4,8 @@ on:
 jobs:
   heatmap:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # 关键修正：赋予写权限
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4
@@ -12,16 +14,27 @@ jobs:
       - name: Generate Pattern
         run: |
           set -e
-          git config --local user.email "xi666fu@gmail.com"
-          git config --local user.name "Biang4"
+          git config --local user.email "wangYuan0999@gmail.com"
+          git config --local user.name "Biang0"
           git remote set-url origin https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
           git pull --rebase --autostash
           
-          # 2020年参数（2020-01-05为第一个完整周的周日）
+          # 关键修正：定义字符矩阵
+          characters=(
+            "11111\n00001\n00001\n00001\n00001\n00001\n11111"  # H
+            "11111\n10000\n11111\n10000\n11111\n10000\n11111"  # E
+            "10000\n10000\n10000\n10000\n10000\n10000\n11111"  # L
+            "11111\n10001\n10001\n10001\n10001\n10001\n11111"  # O
+            "11110\n10001\n11110\n10001\n11110\n10001\n11110"  # 2
+            "11111\n10001\n10001\n10001\n10001\n10001\n11111"  # 0
+            "00000\n00000\n00000\n00000\n00000\n00000\n00000"  # 空格
+          )
+          
+          # 2020年参数（关键修正：第一个完整周为2020-01-05）
           start_date="2020-01-05"
           total_weeks=52
           
-          # 组合字符：H E L L O [空格] 2 0 2 0
+          # 组合字符：HELLO 2020
           pattern="
             ${characters[0]} ${characters[1]} ${characters[2]} ${characters[2]} ${characters[3]}  # HELLO (25周)
             ${characters[6]}  # 空格 (5周)
@@ -38,8 +51,10 @@ jobs:
                 for ((week=0; week<5; week++)); do  # 竖轴：周数
                   local pos=$((week*7 + day))
                   if [[ "${char_data:pos:1}" == "1" ]]; then
-                    # 日期计算：start_date + char_start_week + week周 + day天
+                    # 关键修正：确保日期在2020年内
                     commit_date=$(date -d "$start_date +$((char_start_week + week)) weeks +$day days" +"%Y-%m-%dT09:00:00Z")
+                    [[ "$commit_date" > "2020-12-31" ]] && break  # 防止跨年
+                    echo "Generating commit for: $commit_date"  # 调试输出
                     for i in {1..30}; do  # 提交30次确保深绿色
                       GIT_COMMITTER_DATE="$commit_date" git commit --allow-empty -m "HELLO 2020" --date "$commit_date"
                     done
